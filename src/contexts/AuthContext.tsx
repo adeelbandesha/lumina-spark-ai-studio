@@ -1,31 +1,31 @@
 
 import React, { createContext, useContext, useState, useEffect } from 'react';
+import { toast } from "@/hooks/use-toast";
 
 interface User {
   id: string;
   email: string;
-  firstName: string;
-  lastName: string;
-  avatar?: string;
-  createdAt: string;
+  first_name: string;
+  last_name: string;
 }
 
 interface AuthContextType {
   user: User | null;
   isAuthenticated: boolean;
+  isLoading: boolean;
   login: (email: string, password: string) => Promise<boolean>;
   signup: (data: SignupData) => Promise<boolean>;
   logout: () => void;
   updateProfile: (data: Partial<User>) => Promise<boolean>;
-  resetPassword: (email: string) => Promise<boolean>;
-  changePassword: (currentPassword: string, newPassword: string) => Promise<boolean>;
+  forgotPassword: (email: string) => Promise<boolean>;
+  resetPassword: (email: string, token: string, password: string) => Promise<boolean>;
 }
 
 interface SignupData {
   email: string;
   password: string;
-  firstName: string;
-  lastName: string;
+  first_name: string;
+  last_name: string;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -38,74 +38,117 @@ export const useAuth = () => {
   return context;
 };
 
+const API_BASE_URL = 'http://127.0.0.1:5000';
+
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [user, setUser] = useState<User | null>(null);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
 
+  // Check if user is logged in on app start
   useEffect(() => {
-    // Check if user is logged in on app start
-    const savedUser = localStorage.getItem('user');
-    const savedToken = localStorage.getItem('authToken');
-    
-    if (savedUser && savedToken) {
-      setUser(JSON.parse(savedUser));
-      setIsAuthenticated(true);
-    }
+    checkAuthStatus();
   }, []);
 
-  const login = async (email: string, password: string): Promise<boolean> => {
-    // Simulate API call
-    await new Promise(resolve => setTimeout(resolve, 1000));
-    
-    // Check if user exists in localStorage
-    const users = JSON.parse(localStorage.getItem('users') || '[]');
-    const foundUser = users.find((u: any) => u.email === email && u.password === password);
-    
-    if (foundUser) {
-      const { password: _, ...userWithoutPassword } = foundUser;
-      setUser(userWithoutPassword);
-      setIsAuthenticated(true);
-      localStorage.setItem('user', JSON.stringify(userWithoutPassword));
-      localStorage.setItem('authToken', 'mock-jwt-token');
-      return true;
+  const checkAuthStatus = async () => {
+    const token = localStorage.getItem('authToken');
+    if (!token) {
+      setIsLoading(false);
+      return;
     }
-    
-    return false;
+
+    try {
+      const response = await fetch(`${API_BASE_URL}/auth/profile`, {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+      });
+
+      if (response.ok) {
+        const userData = await response.json();
+        setUser(userData);
+        setIsAuthenticated(true);
+      } else {
+        // Token invalid or expired
+        localStorage.removeItem('authToken');
+        localStorage.removeItem('user');
+      }
+    } catch (error) {
+      console.error('Auth check failed:', error);
+      localStorage.removeItem('authToken');
+      localStorage.removeItem('user');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const login = async (email: string, password: string): Promise<boolean> => {
+    try {
+      const response = await fetch(`${API_BASE_URL}/auth/login`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, password }),
+      });
+
+      const data = await response.json();
+
+      if (response.ok) {
+        setUser(data.user);
+        setIsAuthenticated(true);
+        localStorage.setItem('user', JSON.stringify(data.user));
+        localStorage.setItem('authToken', data.token);
+        return true;
+      } else {
+        toast({
+          title: "Login failed",
+          description: data.error || "Invalid credentials",
+          variant: "destructive",
+        });
+        return false;
+      }
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: "Network error. Please try again.",
+        variant: "destructive",
+      });
+      return false;
+    }
   };
 
   const signup = async (data: SignupData): Promise<boolean> => {
-    // Simulate API call
-    await new Promise(resolve => setTimeout(resolve, 1000));
-    
-    // Check if user already exists
-    const users = JSON.parse(localStorage.getItem('users') || '[]');
-    const existingUser = users.find((u: any) => u.email === data.email);
-    
-    if (existingUser) {
+    try {
+      const response = await fetch(`${API_BASE_URL}/auth/register`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(data),
+      });
+
+      const result = await response.json();
+
+      if (response.ok) {
+        toast({
+          title: "Account created!",
+          description: "Please sign in with your credentials.",
+        });
+        return true;
+      } else {
+        toast({
+          title: "Signup failed",
+          description: result.error || "Failed to create account",
+          variant: "destructive",
+        });
+        return false;
+      }
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: "Network error. Please try again.",
+        variant: "destructive",
+      });
       return false;
     }
-    
-    // Create new user
-    const newUser = {
-      id: Date.now().toString(),
-      email: data.email,
-      password: data.password,
-      firstName: data.firstName,
-      lastName: data.lastName,
-      createdAt: new Date().toISOString(),
-    };
-    
-    users.push(newUser);
-    localStorage.setItem('users', JSON.stringify(users));
-    
-    // Auto login after signup
-    const { password: _, ...userWithoutPassword } = newUser;
-    setUser(userWithoutPassword);
-    setIsAuthenticated(true);
-    localStorage.setItem('user', JSON.stringify(userWithoutPassword));
-    localStorage.setItem('authToken', 'mock-jwt-token');
-    
-    return true;
   };
 
   const logout = () => {
@@ -113,66 +156,128 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setIsAuthenticated(false);
     localStorage.removeItem('user');
     localStorage.removeItem('authToken');
+    toast({
+      title: "Logged out",
+      description: "You have been successfully logged out.",
+    });
   };
 
-  const updateProfile = async (data: Partial<User>): Promise<boolean> => {
-    // Simulate API call
-    await new Promise(resolve => setTimeout(resolve, 1000));
-    
-    if (!user) return false;
-    
-    const updatedUser = { ...user, ...data };
-    setUser(updatedUser);
-    localStorage.setItem('user', JSON.stringify(updatedUser));
-    
-    // Update in users array
-    const users = JSON.parse(localStorage.getItem('users') || '[]');
-    const userIndex = users.findIndex((u: any) => u.id === user.id);
-    if (userIndex !== -1) {
-      users[userIndex] = { ...users[userIndex], ...data };
-      localStorage.setItem('users', JSON.stringify(users));
+  const updateProfile = async (profileData: Partial<User>): Promise<boolean> => {
+    const token = localStorage.getItem('authToken');
+    if (!token) return false;
+
+    try {
+      const response = await fetch(`${API_BASE_URL}/auth/profile`, {
+        method: 'PATCH',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(profileData),
+      });
+
+      if (response.ok) {
+        const updatedUser = await response.json();
+        setUser(updatedUser);
+        localStorage.setItem('user', JSON.stringify(updatedUser));
+        return true;
+      } else {
+        const error = await response.json();
+        toast({
+          title: "Update failed",
+          description: error.error || "Failed to update profile",
+          variant: "destructive",
+        });
+        return false;
+      }
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: "Network error. Please try again.",
+        variant: "destructive",
+      });
+      return false;
     }
-    
-    return true;
   };
 
-  const resetPassword = async (email: string): Promise<boolean> => {
-    // Simulate API call
-    await new Promise(resolve => setTimeout(resolve, 1000));
-    
-    const users = JSON.parse(localStorage.getItem('users') || '[]');
-    const foundUser = users.find((u: any) => u.email === email);
-    
-    return !!foundUser;
-  };
+  const forgotPassword = async (email: string): Promise<boolean> => {
+    try {
+      const response = await fetch(`${API_BASE_URL}/auth/forgot-password`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email }),
+      });
 
-  const changePassword = async (currentPassword: string, newPassword: string): Promise<boolean> => {
-    // Simulate API call
-    await new Promise(resolve => setTimeout(resolve, 1000));
-    
-    if (!user) return false;
-    
-    const users = JSON.parse(localStorage.getItem('users') || '[]');
-    const userIndex = users.findIndex((u: any) => u.id === user.id);
-    
-    if (userIndex !== -1 && users[userIndex].password === currentPassword) {
-      users[userIndex].password = newPassword;
-      localStorage.setItem('users', JSON.stringify(users));
-      return true;
+      const data = await response.json();
+
+      if (response.ok) {
+        toast({
+          title: "Reset token sent!",
+          description: "Check your email for the reset token.",
+        });
+        return true;
+      } else {
+        toast({
+          title: "Error",
+          description: data.error || "Failed to send reset token",
+          variant: "destructive",
+        });
+        return false;
+      }
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: "Network error. Please try again.",
+        variant: "destructive",
+      });
+      return false;
     }
-    
-    return false;
+  };
+
+  const resetPassword = async (email: string, token: string, password: string): Promise<boolean> => {
+    try {
+      const response = await fetch(`${API_BASE_URL}/auth/reset-password`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, token, password }),
+      });
+
+      const data = await response.json();
+
+      if (response.ok) {
+        toast({
+          title: "Password reset successful!",
+          description: "You can now login with your new password.",
+        });
+        return true;
+      } else {
+        toast({
+          title: "Reset failed",
+          description: data.error || "Invalid or expired token",
+          variant: "destructive",
+        });
+        return false;
+      }
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: "Network error. Please try again.",
+        variant: "destructive",
+      });
+      return false;
+    }
   };
 
   const value = {
     user,
     isAuthenticated,
+    isLoading,
     login,
     signup,
     logout,
     updateProfile,
+    forgotPassword,
     resetPassword,
-    changePassword,
   };
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

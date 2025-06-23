@@ -5,133 +5,93 @@ import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { User, Mail, Lock, Save, Eye, EyeOff, LogOut, ArrowLeft } from "lucide-react";
+import { User, Mail, Save, LogOut, ArrowLeft, AlertCircle } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { toast } from "@/hooks/use-toast";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 
 const Profile = () => {
-  const { user, updateProfile, changePassword, logout } = useAuth();
+  const { user, updateProfile, logout } = useAuth();
+  const navigate = useNavigate();
   const [isLoading, setIsLoading] = useState(false);
-  const [isPasswordLoading,] = useState(false);
+  const [errors, setErrors] = useState<{ [key: string]: string }>({});
   
   const [profileData, setProfileData] = useState({
-    firstName: user?.firstName || "",
-    lastName: user?.lastName || "",
+    first_name: user?.first_name || "",
+    last_name: user?.last_name || "",
     email: user?.email || "",
   });
 
-  const [passwordData, setPasswordData] = useState({
-    currentPassword: "",
-    newPassword: "",
-    confirmPassword: "",
-  });
-
-  const [showPasswords, setShowPasswords] = useState({
-    current: false,
-    new: false,
-    confirm: false,
-  });
-
   const handleProfileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const { name, value } = e.target;
     setProfileData(prev => ({
       ...prev,
-      [e.target.name]: e.target.value
+      [name]: value
     }));
+
+    // Clear error when user starts typing
+    if (errors[name]) {
+      setErrors(prev => ({ ...prev, [name]: "" }));
+    }
   };
 
-  const handlePasswordChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    setPasswordData(prev => ({
-      ...prev,
-      [e.target.name]: e.target.value
-    }));
+  const validateForm = () => {
+    const newErrors: { [key: string]: string } = {};
+
+    if (!profileData.first_name.trim()) {
+      newErrors.first_name = "First name is required";
+    }
+
+    if (!profileData.last_name.trim()) {
+      newErrors.last_name = "Last name is required";
+    }
+
+    if (!profileData.email) {
+      newErrors.email = "Email is required";
+    } else if (!/\S+@\S+\.\S+/.test(profileData.email)) {
+      newErrors.email = "Email is invalid";
+    }
+
+    setErrors(newErrors);
+    return Object.keys(newErrors).length === 0;
   };
 
   const handleProfileSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    
+    if (!validateForm()) {
+      return;
+    }
+
     setIsLoading(true);
 
     try {
-      const success = await updateProfile(profileData);
+      const success = await updateProfile({
+        first_name: profileData.first_name,
+        last_name: profileData.last_name,
+      });
+      
       if (success) {
         toast({
           title: "Profile updated!",
           description: "Your profile has been successfully updated.",
         });
-      } else {
-        toast({
-          title: "Update failed",
-          description: "Failed to update profile. Please try again.",
-          variant: "destructive",
-        });
       }
     } catch (error) {
-      toast({
-        title: "Error",
-        description: "An unexpected error occurred. Please try again.",
-        variant: "destructive",
-      });
+      console.error("Profile update error:", error);
     } finally {
       setIsLoading(false);
     }
   };
 
-  const handlePasswordSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    
-    if (passwordData.newPassword !== passwordData.confirmPassword) {
-      toast({
-        title: "Password mismatch",
-        description: "New passwords do not match. Please try again.",
-        variant: "destructive",
-      });
-      return;
-    }
-
-    if (passwordData.newPassword.length < 6) {
-      toast({
-        title: "Password too short",
-        description: "New password must be at least 6 characters long.",
-        variant: "destructive",
-      });
-      return;
-    }
-
-    try {
-      const success = await changePassword(passwordData.currentPassword, passwordData.newPassword);
-      if (success) {
-        toast({
-          title: "Password changed!",
-          description: "Your password has been successfully updated.",
-        });
-        setPasswordData({
-          currentPassword: "",
-          newPassword: "",
-          confirmPassword: "",
-        });
-      } else {
-        toast({
-          title: "Password change failed",
-          description: "Current password is incorrect. Please try again.",
-          variant: "destructive",
-        });
-      }
-    } catch (error) {
-      toast({
-        title: "Error",
-        description: "An unexpected error occurred. Please try again.",
-        variant: "destructive",
-      });
-    }
-  };
-
   const handleLogout = () => {
     logout();
-    toast({
-      title: "Logged out",
-      description: "You have been successfully logged out.",
-    });
+    navigate("/login");
   };
+
+  if (!user) {
+    return null;
+  }
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900 p-4">
@@ -150,85 +110,103 @@ const Profile = () => {
           <div className="flex items-center space-x-4">
             <Link
               to="/"
-              className="p-2 rounded-lg bg-slate-800/50 backdrop-blur-lg border-slate-700/50 hover:bg-slate-700/50 transition-colors"
+              className="p-2 rounded-lg bg-slate-800/50 backdrop-blur-lg border-slate-700/50 hover:bg-slate-700/50 transition-all duration-200 transform hover:scale-105"
             >
               <ArrowLeft className="w-5 h-5 text-slate-300" />
             </Link>
             <div>
-              <h1 className="text-3xl font-bold bg-gradient-to-r from-cyan-400 via-purple-400 to-pink-400 bg-clip-text text-transparent">
+              <h1 className="text-3xl font-bold bg-gradient-to-r from-cyan-400 via-purple-400 to-pink-400 bg-clip-text text-transparent animate-fade-in">
                 Profile Settings
               </h1>
-              <p className="text-slate-300">Manage your account settings and preferences</p>
+              <p className="text-slate-300 animate-fade-in animation-delay-200">Manage your account settings and preferences</p>
             </div>
           </div>
           <Button
             onClick={handleLogout}
             variant="outline"
-            className="border-red-500/50 text-red-400 hover:bg-red-500/10 hover:border-red-500"
+            className="border-red-500/50 text-red-400 hover:bg-red-500/10 hover:border-red-500 transition-all duration-200 transform hover:scale-105"
           >
             <LogOut className="w-4 h-4 mr-2" />
             Logout
           </Button>
         </div>
 
-        <Card className="bg-slate-800/50 backdrop-blur-lg border-slate-700/50 shadow-2xl shadow-purple-500/20">
+        <Card className="bg-slate-800/50 backdrop-blur-lg border-slate-700/50 shadow-2xl shadow-purple-500/20 animate-scale-in">
           <Tabs defaultValue="profile" className="w-full">
-            <TabsList className="grid w-full grid-cols-2 bg-slate-700/50 border-slate-600">
+            <TabsList className="grid w-full grid-cols-1 bg-slate-700/50 border-slate-600">
               <TabsTrigger 
                 value="profile" 
-                className="data-[state=active]:bg-purple-600 data-[state=active]:text-white"
+                className="data-[state=active]:bg-purple-600 data-[state=active]:text-white transition-all duration-300"
               >
                 <User className="w-4 h-4 mr-2" />
-                Profile
-              </TabsTrigger>
-              <TabsTrigger 
-                value="security" 
-                className="data-[state=active]:bg-cyan-600 data-[state=active]:text-white"
-              >
-                <Lock className="w-4 h-4 mr-2" />
-                Security
+                Profile Information
               </TabsTrigger>
             </TabsList>
 
             {/* Profile Tab */}
             <TabsContent value="profile">
               <CardHeader>
-                <CardTitle className="text-xl text-white">Personal Information</CardTitle>
+                <CardTitle className="text-xl text-white flex items-center">
+                  <User className="w-5 h-5 mr-2" />
+                  Personal Information
+                </CardTitle>
                 <p className="text-slate-300">Update your personal details and contact information.</p>
               </CardHeader>
               <CardContent>
                 <form onSubmit={handleProfileSubmit} className="space-y-6">
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                     <div className="space-y-2">
-                      <Label htmlFor="firstName" className="text-slate-300">First Name</Label>
+                      <Label htmlFor="first_name" className="text-slate-300">First Name</Label>
                       <div className="relative">
                         <User className="absolute left-3 top-3 h-4 w-4 text-slate-400" />
                         <Input
-                          id="firstName"
-                          name="firstName"
+                          id="first_name"
+                          name="first_name"
                           type="text"
-                          value={profileData.firstName}
+                          value={profileData.first_name}
                           onChange={handleProfileChange}
-                          className="pl-10 bg-slate-700/50 border-slate-600 text-white placeholder-slate-400 focus:border-purple-500 focus:ring-purple-500/50"
+                          className={`pl-10 bg-slate-700/50 border-slate-600 text-white placeholder-slate-400 focus:border-purple-500 focus:ring-purple-500/50 transition-all duration-300 ${
+                            errors.first_name ? 'border-red-500' : ''
+                          }`}
                           required
                         />
+                        {errors.first_name && (
+                          <AlertCircle className="absolute right-3 top-3 h-4 w-4 text-red-500" />
+                        )}
                       </div>
+                      {errors.first_name && (
+                        <p className="text-sm text-red-400 flex items-center animate-fade-in">
+                          <AlertCircle className="w-3 h-3 mr-1" />
+                          {errors.first_name}
+                        </p>
+                      )}
                     </div>
 
                     <div className="space-y-2">
-                      <Label htmlFor="lastName" className="text-slate-300">Last Name</Label>
+                      <Label htmlFor="last_name" className="text-slate-300">Last Name</Label>
                       <div className="relative">
                         <User className="absolute left-3 top-3 h-4 w-4 text-slate-400" />
                         <Input
-                          id="lastName"
-                          name="lastName"
+                          id="last_name"
+                          name="last_name"
                           type="text"
-                          value={profileData.lastName}
+                          value={profileData.last_name}
                           onChange={handleProfileChange}
-                          className="pl-10 bg-slate-700/50 border-slate-600 text-white placeholder-slate-400 focus:border-purple-500 focus:ring-purple-500/50"
+                          className={`pl-10 bg-slate-700/50 border-slate-600 text-white placeholder-slate-400 focus:border-purple-500 focus:ring-purple-500/50 transition-all duration-300 ${
+                            errors.last_name ? 'border-red-500' : ''
+                          }`}
                           required
                         />
+                        {errors.last_name && (
+                          <AlertCircle className="absolute right-3 top-3 h-4 w-4 text-red-500" />
+                        )}
                       </div>
+                      {errors.last_name && (
+                        <p className="text-sm text-red-400 flex items-center animate-fade-in">
+                          <AlertCircle className="w-3 h-3 mr-1" />
+                          {errors.last_name}
+                        </p>
+                      )}
                     </div>
                   </div>
 
@@ -241,118 +219,37 @@ const Profile = () => {
                         name="email"
                         type="email"
                         value={profileData.email}
-                        onChange={handleProfileChange}
-                        className="pl-10 bg-slate-700/50 border-slate-600 text-white placeholder-slate-400 focus:border-purple-500 focus:ring-purple-500/50"
-                        required
+                        className="pl-10 bg-slate-600/50 border-slate-500 text-slate-400 cursor-not-allowed"
+                        disabled
                       />
                     </div>
+                    <p className="text-xs text-slate-500">Email address cannot be changed</p>
                   </div>
 
-                  <Button
-                    type="submit"
-                    disabled={isLoading}
-                    className="bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 shadow-lg shadow-purple-500/30"
-                  >
-                    {isLoading ? (
-                      <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin mr-2" />
-                    ) : (
-                      <Save className="w-4 h-4 mr-2" />
-                    )}
-                    Save Changes
-                  </Button>
-                </form>
-              </CardContent>
-            </TabsContent>
-
-            {/* Security Tab */}
-            <TabsContent value="security">
-              <CardHeader>
-                <CardTitle className="text-xl text-white">Change Password</CardTitle>
-                <p className="text-slate-300">Update your password to keep your account secure.</p>
-              </CardHeader>
-              <CardContent>
-                <form onSubmit={handlePasswordSubmit} className="space-y-6">
-                  <div className="space-y-2">
-                    <Label htmlFor="currentPassword" className="text-slate-300">Current Password</Label>
-                    <div className="relative">
-                      <Lock className="absolute left-3 top-3 h-4 w-4 text-slate-400" />
-                      <Input
-                        id="currentPassword"
-                        name="currentPassword"
-                        type={showPasswords.current ? "text" : "password"}
-                        value={passwordData.currentPassword}
-                        onChange={handlePasswordChange}
-                        className="pl-10 pr-10 bg-slate-700/50 border-slate-600 text-white placeholder-slate-400 focus:border-cyan-500 focus:ring-cyan-500/50"
-                        required
-                      />
-                      <button
-                        type="button"
-                        onClick={() => setShowPasswords(prev => ({ ...prev, current: !prev.current }))}
-                        className="absolute right-3 top-3 text-slate-400 hover:text-slate-300"
-                      >
-                        {showPasswords.current ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-                      </button>
+                  <div className="flex items-center justify-between pt-4">
+                    <div className="text-sm text-slate-400">
+                      <p>Member since: {new Date(user.id).toLocaleDateString()}</p>
+                      <p>User ID: {user.id}</p>
                     </div>
+                    
+                    <Button
+                      type="submit"
+                      disabled={isLoading}
+                      className="bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 shadow-lg shadow-purple-500/30 transform hover:scale-105 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none"
+                    >
+                      {isLoading ? (
+                        <div className="flex items-center">
+                          <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin mr-2" />
+                          Updating...
+                        </div>
+                      ) : (
+                        <>
+                          <Save className="w-4 h-4 mr-2" />
+                          Save Changes
+                        </>
+                      )}
+                    </Button>
                   </div>
-
-                  <div className="space-y-2">
-                    <Label htmlFor="newPassword" className="text-slate-300">New Password</Label>
-                    <div className="relative">
-                      <Lock className="absolute left-3 top-3 h-4 w-4 text-slate-400" />
-                      <Input
-                        id="newPassword"
-                        name="newPassword"
-                        type={showPasswords.new ? "text" : "password"}
-                        value={passwordData.newPassword}
-                        onChange={handlePasswordChange}
-                        className="pl-10 pr-10 bg-slate-700/50 border-slate-600 text-white placeholder-slate-400 focus:border-cyan-500 focus:ring-cyan-500/50"
-                        required
-                      />
-                      <button
-                        type="button"
-                        onClick={() => setShowPasswords(prev => ({ ...prev, new: !prev.new }))}
-                        className="absolute right-3 top-3 text-slate-400 hover:text-slate-300"
-                      >
-                        {showPasswords.new ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-                      </button>
-                    </div>
-                  </div>
-
-                  <div className="space-y-2">
-                    <Label htmlFor="confirmPassword" className="text-slate-300">Confirm New Password</Label>
-                    <div className="relative">
-                      <Lock className="absolute left-3 top-3 h-4 w-4 text-slate-400" />
-                      <Input
-                        id="confirmPassword"
-                        name="confirmPassword"
-                        type={showPasswords.confirm ? "text" : "password"}
-                        value={passwordData.confirmPassword}
-                        onChange={handlePasswordChange}
-                        className="pl-10 pr-10 bg-slate-700/50 border-slate-600 text-white placeholder-slate-400 focus:border-cyan-500 focus:ring-cyan-500/50"
-                        required
-                      />
-                      <button
-                        type="button"
-                        onClick={() => setShowPasswords(prev => ({ ...prev, confirm: !prev.confirm }))}
-                        className="absolute right-3 top-3 text-slate-400 hover:text-slate-300"
-                      >
-                        {showPasswords.confirm ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-                      </button>
-                    </div>
-                  </div>
-
-                  <Button
-                    type="submit"
-                    disabled={isPasswordLoading}
-                    className="bg-gradient-to-r from-cyan-600 to-blue-600 hover:from-cyan-700 hover:to-blue-700 shadow-lg shadow-cyan-500/30"
-                  >
-                    {isPasswordLoading ? (
-                      <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin mr-2" />
-                    ) : (
-                      <Lock className="w-4 h-4 mr-2" />
-                    )}
-                    Change Password
-                  </Button>
                 </form>
               </CardContent>
             </TabsContent>

@@ -33,6 +33,14 @@ const Index = () => {
   const [isImageLoading, setIsImageLoading] = useState(false);
   const [typingAnimation, setTypingAnimation] = useState(false);
 
+  const getAuthHeaders = () => {
+    const token = localStorage.getItem('authToken');
+    return {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${token}`
+    };
+  };
+
   const sendMessage = async () => {
     if (!chatInput.trim() || isLoading) return;
 
@@ -60,9 +68,9 @@ const Index = () => {
     try {
       const response = await fetch("http://127.0.0.1:5000/chat", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: getAuthHeaders(),
         body: JSON.stringify({
-          messages: [{ role: "user", parts: [{ text: chatInput }] }]
+          messages: [{ role: "user", content: chatInput }]
         }),
       });
 
@@ -80,7 +88,16 @@ const Index = () => {
           setTypingAnimation(false);
         }, 1500);
       } else {
-        throw new Error(data.error || "Failed to send message");
+        if (response.status === 401) {
+          toast({
+            title: "Session expired",
+            description: "Please sign in again.",
+            variant: "destructive",
+          });
+          // Could trigger logout here if needed
+        } else {
+          throw new Error(data.error || "Failed to send message");
+        }
       }
     } catch (error) {
       toast({
@@ -111,7 +128,7 @@ const Index = () => {
     try {
       const response = await fetch("http://127.0.0.1:5000/generate-image", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: getAuthHeaders(),
         body: JSON.stringify({ prompt: imagePrompt }),
       });
 
@@ -131,7 +148,15 @@ const Index = () => {
           description: "Image generated successfully!",
         });
       } else {
-        throw new Error(data.error || "Failed to generate image");
+        if (response.status === 401) {
+          toast({
+            title: "Session expired",
+            description: "Please sign in again.",
+            variant: "destructive",
+          });
+        } else {
+          throw new Error(data.error || "Failed to generate image");
+        }
       }
     } catch (error) {
       toast({
@@ -208,9 +233,6 @@ const Index = () => {
                     <div className="text-center text-slate-400 mt-20">
                       <Bot className="w-16 h-16 mx-auto mb-4 text-purple-400" />
                       <p>Start a conversation with your AI assistant</p>
-                      {!isAuthenticated && (
-                        <p className="text-sm mt-2 text-slate-500">Sign in to unlock chat features</p>
-                      )}
                     </div>
                   )}
                   
@@ -256,15 +278,15 @@ const Index = () => {
                   <Input
                     value={chatInput}
                     onChange={(e) => setChatInput(e.target.value)}
-                    placeholder={isAuthenticated ? "Type your message..." : "Sign in to start chatting..."}
+                    placeholder="Type your message..."
                     onKeyPress={(e) => e.key === "Enter" && sendMessage()}
-                    className="bg-slate-700/50 border-slate-600 text-white placeholder-slate-400 focus:border-purple-500 focus:ring-purple-500/50"
-                    disabled={isLoading || !isAuthenticated}
+                    className="bg-slate-700/50 border-slate-600 text-white placeholder-slate-400 focus:border-purple-500 focus:ring-purple-500/50 transition-all duration-300"
+                    disabled={isLoading}
                   />
                   <Button
                     onClick={sendMessage}
-                    disabled={isLoading || !chatInput.trim() || !isAuthenticated}
-                    className="bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 shadow-lg shadow-purple-500/30 transform hover:scale-105 transition-all duration-200"
+                    disabled={isLoading || !chatInput.trim()}
+                    className="bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 shadow-lg shadow-purple-500/30 transform hover:scale-105 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none"
                   >
                     {isLoading ? (
                       <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
@@ -284,15 +306,15 @@ const Index = () => {
                   <Input
                     value={imagePrompt}
                     onChange={(e) => setImagePrompt(e.target.value)}
-                    placeholder={isAuthenticated ? "Describe the image you want to generate..." : "Sign in to generate images..."}
+                    placeholder="Describe the image you want to generate..."
                     onKeyPress={(e) => e.key === "Enter" && generateImage()}
-                    className="bg-slate-700/50 border-slate-600 text-white placeholder-slate-400 focus:border-cyan-500 focus:ring-cyan-500/50"
-                    disabled={isImageLoading || !isAuthenticated}
+                    className="bg-slate-700/50 border-slate-600 text-white placeholder-slate-400 focus:border-cyan-500 focus:ring-cyan-500/50 transition-all duration-300"
+                    disabled={isImageLoading}
                   />
                   <Button
                     onClick={generateImage}
-                    disabled={isImageLoading || !imagePrompt.trim() || !isAuthenticated}
-                    className="bg-gradient-to-r from-cyan-600 to-blue-600 hover:from-cyan-700 hover:to-blue-700 shadow-lg shadow-cyan-500/30 transform hover:scale-105 transition-all duration-200"
+                    disabled={isImageLoading || !imagePrompt.trim()}
+                    className="bg-gradient-to-r from-cyan-600 to-blue-600 hover:from-cyan-700 hover:to-blue-700 shadow-lg shadow-cyan-500/30 transform hover:scale-105 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none"
                   >
                     {isImageLoading ? (
                       <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
@@ -318,7 +340,7 @@ const Index = () => {
                         <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex items-center justify-center">
                           <Button
                             onClick={() => downloadImage(image.base64, image.prompt)}
-                            className="bg-white/20 backdrop-blur-sm hover:bg-white/30 text-white border-white/30"
+                            className="bg-white/20 backdrop-blur-sm hover:bg-white/30 text-white border-white/30 transform hover:scale-105 transition-all duration-200"
                             size="sm"
                           >
                             <Download className="w-4 h-4 mr-2" />
@@ -340,9 +362,6 @@ const Index = () => {
                   <div className="text-center text-slate-400 mt-20">
                     <ImageIcon className="w-16 h-16 mx-auto mb-4 text-cyan-400" />
                     <p>Generate your first AI image</p>
-                    {!isAuthenticated && (
-                      <p className="text-sm mt-2 text-slate-500">Sign in to unlock image generation</p>
-                    )}
                   </div>
                 )}
               </div>
