@@ -6,6 +6,8 @@ import { Card } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Send, Image as ImageIcon, Download, Bot, User } from "lucide-react";
 import { toast } from "@/hooks/use-toast";
+import AuthHeader from "@/components/AuthHeader";
+import { useAuth } from "@/contexts/AuthContext";
 
 interface Message {
   id: string;
@@ -22,6 +24,7 @@ interface GeneratedImage {
 }
 
 const Index = () => {
+  const { isAuthenticated } = useAuth();
   const [messages, setMessages] = useState<Message[]>([]);
   const [images, setImages] = useState<GeneratedImage[]>([]);
   const [chatInput, setChatInput] = useState("");
@@ -32,6 +35,15 @@ const Index = () => {
 
   const sendMessage = async () => {
     if (!chatInput.trim() || isLoading) return;
+
+    if (!isAuthenticated) {
+      toast({
+        title: "Authentication required",
+        description: "Please sign in to use the chat feature.",
+        variant: "destructive",
+      });
+      return;
+    }
 
     const userMessage: Message = {
       id: Date.now().toString(),
@@ -84,6 +96,15 @@ const Index = () => {
 
   const generateImage = async () => {
     if (!imagePrompt.trim() || isImageLoading) return;
+
+    if (!isAuthenticated) {
+      toast({
+        title: "Authentication required",
+        description: "Please sign in to generate images.",
+        variant: "destructive",
+      });
+      return;
+    }
 
     setIsImageLoading(true);
 
@@ -143,14 +164,19 @@ const Index = () => {
 
       {/* Main content */}
       <div className="relative z-10 container mx-auto px-4 py-8 max-w-6xl">
-        {/* Header */}
-        <div className="text-center mb-8">
-          <h1 className="text-5xl font-bold bg-gradient-to-r from-cyan-400 via-purple-400 to-pink-400 bg-clip-text text-transparent mb-4 animate-fade-in">
-            AI Assistant
-          </h1>
-          <p className="text-slate-300 text-lg animate-fade-in animation-delay-500">
-            Chat with AI and generate stunning images
-          </p>
+        {/* Header with Auth */}
+        <div className="flex justify-between items-center mb-8">
+          <div className="text-center flex-1">
+            <h1 className="text-5xl font-bold bg-gradient-to-r from-cyan-400 via-purple-400 to-pink-400 bg-clip-text text-transparent mb-4 animate-fade-in">
+              AI Assistant
+            </h1>
+            <p className="text-slate-300 text-lg animate-fade-in animation-delay-500">
+              Chat with AI and generate stunning images
+            </p>
+          </div>
+          <div className="absolute top-0 right-0">
+            <AuthHeader />
+          </div>
         </div>
 
         {/* Main interface */}
@@ -182,6 +208,9 @@ const Index = () => {
                     <div className="text-center text-slate-400 mt-20">
                       <Bot className="w-16 h-16 mx-auto mb-4 text-purple-400" />
                       <p>Start a conversation with your AI assistant</p>
+                      {!isAuthenticated && (
+                        <p className="text-sm mt-2 text-slate-500">Sign in to unlock chat features</p>
+                      )}
                     </div>
                   )}
                   
@@ -227,14 +256,14 @@ const Index = () => {
                   <Input
                     value={chatInput}
                     onChange={(e) => setChatInput(e.target.value)}
-                    placeholder="Type your message..."
+                    placeholder={isAuthenticated ? "Type your message..." : "Sign in to start chatting..."}
                     onKeyPress={(e) => e.key === "Enter" && sendMessage()}
                     className="bg-slate-700/50 border-slate-600 text-white placeholder-slate-400 focus:border-purple-500 focus:ring-purple-500/50"
-                    disabled={isLoading}
+                    disabled={isLoading || !isAuthenticated}
                   />
                   <Button
                     onClick={sendMessage}
-                    disabled={isLoading || !chatInput.trim()}
+                    disabled={isLoading || !chatInput.trim() || !isAuthenticated}
                     className="bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 shadow-lg shadow-purple-500/30 transform hover:scale-105 transition-all duration-200"
                   >
                     {isLoading ? (
@@ -255,14 +284,14 @@ const Index = () => {
                   <Input
                     value={imagePrompt}
                     onChange={(e) => setImagePrompt(e.target.value)}
-                    placeholder="Describe the image you want to generate..."
+                    placeholder={isAuthenticated ? "Describe the image you want to generate..." : "Sign in to generate images..."}
                     onKeyPress={(e) => e.key === "Enter" && generateImage()}
                     className="bg-slate-700/50 border-slate-600 text-white placeholder-slate-400 focus:border-cyan-500 focus:ring-cyan-500/50"
-                    disabled={isImageLoading}
+                    disabled={isImageLoading || !isAuthenticated}
                   />
                   <Button
                     onClick={generateImage}
-                    disabled={isImageLoading || !imagePrompt.trim()}
+                    disabled={isImageLoading || !imagePrompt.trim() || !isAuthenticated}
                     className="bg-gradient-to-r from-cyan-600 to-blue-600 hover:from-cyan-700 hover:to-blue-700 shadow-lg shadow-cyan-500/30 transform hover:scale-105 transition-all duration-200"
                   >
                     {isImageLoading ? (
@@ -311,6 +340,9 @@ const Index = () => {
                   <div className="text-center text-slate-400 mt-20">
                     <ImageIcon className="w-16 h-16 mx-auto mb-4 text-cyan-400" />
                     <p>Generate your first AI image</p>
+                    {!isAuthenticated && (
+                      <p className="text-sm mt-2 text-slate-500">Sign in to unlock image generation</p>
+                    )}
                   </div>
                 )}
               </div>
